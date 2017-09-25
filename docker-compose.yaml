@@ -1,0 +1,37 @@
+version: '3'
+services:
+  worker:
+    build: .
+    ports:
+     - "5000:5000"
+    volumes:
+      - .:/code:ro
+
+  zookeeper:
+    image: wurstmeister/zookeeper
+    ports:
+      - "2181"
+
+  kafka:
+    image: wurstmeister/kafka
+    environment:
+      KAFKA_CREATE_TOPICS: "my_topic:1:1,my_other_topic:1:1"
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092"
+
+  db:
+    image: postgres:9.6
+    ports:
+      - "5432"
+    volumes:
+      - ./sql:/docker-entrypoint-initdb.d/:ro
+
+  systemtest:
+    build: ./Dockerfile.systemtest
+    volumes:
+      - .:/code
+    # TODO: create a volume for pytest outputs
+    command: pytest /code/system_test
