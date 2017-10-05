@@ -1,29 +1,23 @@
 version: '3'
 services:
-  worker:
-    build: .
-    ports:
-     - "5000:5000"
-    volumes:
-      - .:/code:ro
-
   zookeeper:
     image: wurstmeister/zookeeper
     ports:
       - "2181"
 
+  # https://hub.docker.com/r/wurstmeister/kafka/
   kafka:
     image: wurstmeister/kafka
-    environment:
-      KAFKA_CREATE_TOPICS: "my_topic:1:1,my_other_topic:1:1"
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_HOST_NAME: localhost
     depends_on:
       - zookeeper
     ports:
-      - "9092:9092"
-#    volumes:
-#      - /var/run/docker.sock:/var/run/docker.sock
+      - "9092"
+    environment:
+      KAFKA_CREATE_TOPICS: "my_topic:1:1"
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_HOST_NAME: kafka
+      KAFKA_ADVERTISED_PORT: 9092
+      KAFKA_BROKER_ID: 0
 
   db:
     image: postgres:9.6
@@ -32,11 +26,33 @@ services:
     volumes:
       - ./sql:/docker-entrypoint-initdb.d/:ro
 
+# DB_DSN: postgresql://worker:worker@db/meetup
+# KAFKA_SERVER: kafka:9092
+
+  worker:
+    build: .
+    depends_on:
+      - kafka
+      - db
+    volumes:
+      # Hot-reload
+      - .:/code:ro
+    environment:
+      DB_DSN: postgresql://worker:worker@db/meetup
+      KAFKA_SERVER: kafka:9092
+    command: python /code/worker/app.py
+
   systemtest:
-    build: ./Dockerfile.systemtest
+    build:
+      context: .
+      dockerfile: Dockerfile.systemtest
+    depends_on:
+      - worker
+      - kafka
+      - db
     volumes:
       - .:/code
-#    user: $(USER)
-#    group: $(GROUP)
-    # TODO: create a volume for pytest outputs
-    command: pytest /code/system_test
+    environment:
+      DB_DSN: postgresql://worker:worker@db/meetup
+      KAFKA_SERVER: kafka:9092
+    command: bash -c "mkdir -p /code/reports && pytest -v --junitxml=/code/reports/report.xml /code/system_test"
