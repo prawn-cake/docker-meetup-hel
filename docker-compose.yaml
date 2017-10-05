@@ -17,10 +17,13 @@ services:
     environment:
       KAFKA_CREATE_TOPICS: "my_topic:1:1,my_other_topic:1:1"
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_HOST_NAME: localhost
     depends_on:
       - zookeeper
     ports:
-      - "9092"
+      - "9092:9092"
+#    volumes:
+#      - /var/run/docker.sock:/var/run/docker.sock
 
   db:
     image: postgres:9.6
@@ -33,5 +36,7 @@ services:
     build: ./Dockerfile.systemtest
     volumes:
       - .:/code
+#    user: $(USER)
+#    group: $(GROUP)
     # TODO: create a volume for pytest outputs
     command: pytest /code/system_test
